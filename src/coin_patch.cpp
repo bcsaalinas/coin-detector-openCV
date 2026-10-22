@@ -40,7 +40,9 @@ CoinPatch makeCandidatePatch(const cv::Mat& searchGray, const CoinCandidate& can
 {
     // Pad the image so squares around coins at the border can still be cut.
     // `valid` remembers which pixels are real image and which are padding.
-    const int pad = params::HOUGH_MAX_RADIUS + 10;
+    // The padding depends on this coin's radius (not a fixed maximum), so any
+    // Hough radius range works, including larger live views.
+    const int pad = cvCeil(candidate.radius) + 10;
     cv::Mat padded;
     cv::Mat valid;
     cv::copyMakeBorder(searchGray, padded, pad, pad, pad, pad, cv::BORDER_CONSTANT,

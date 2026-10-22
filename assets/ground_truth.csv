@@ -1,0 +1,13 @@
+# Manual ground truth, used ONLY to score the result (H6). The classifier never
+# reads this file.
+#
+# Every coin in the search region that belongs to one of the reference types.
+# `type` must be one of the reference names (params::REFERENCE_NAMES).
+# Coordinates are pixels inside the search region (output/01_search_region.png).
+# Annotated by eye on 2026-10-22. The other coins in the photo belong to no
+# reference type, or are slivers at the border too small to identify.
+#
+# type,x,y,note
+penny,367,796,1996 Lincoln (front side; same side as the reference)
+penny,359,1480,2002 Lincoln (front side; same side as the reference)
+quarter,759,457,2015 North Carolina (BACK side; the reference shows the front)
