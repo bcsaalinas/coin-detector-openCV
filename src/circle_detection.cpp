@@ -10,7 +10,18 @@
 #include <iostream>
 #include <string>
 
+HoughSettings imageHoughSettings()
+{
+    return {params::HOUGH_DP,     params::HOUGH_MIN_DIST,   params::HOUGH_PARAM1,
+            params::HOUGH_PARAM2, params::HOUGH_MIN_RADIUS, params::HOUGH_MAX_RADIUS};
+}
+
 std::vector<cv::Vec3f> detectCircles(const cv::Mat& smoothedGray)
+{
+    return detectCircles(smoothedGray, imageHoughSettings());
+}
+
+std::vector<cv::Vec3f> detectCircles(const cv::Mat& smoothedGray, const HoughSettings& settings)
 {
     // Hough transform for circles, gradient variant (HOUGH_GRADIENT):
     //   1. Canny(param1 / 2, param1) finds edge pixels of the input.
@@ -23,11 +34,33 @@ std::vector<cv::Vec3f> detectCircles(const cv::Mat& smoothedGray)
     // The input is the smoothed intensity image, not our own Canny output:
     // OpenCV needs the gradient directions, which a binary edge map has lost.
     std::vector<cv::Vec3f> circles;
-    cv::HoughCircles(smoothedGray, circles, cv::HOUGH_GRADIENT,
-                     params::HOUGH_DP, params::HOUGH_MIN_DIST,
-                     params::HOUGH_PARAM1, params::HOUGH_PARAM2,
-                     params::HOUGH_MIN_RADIUS, params::HOUGH_MAX_RADIUS);
+    cv::HoughCircles(smoothedGray, circles, cv::HOUGH_GRADIENT, settings.dp,
+                     settings.minDist, settings.param1, settings.param2,
+                     settings.minRadius, settings.maxRadius);
     return circles;
+}
+
+double rimSupport(const cv::Mat& edges, const cv::Vec3f& circle)
+{
+    // Accept an edge pixel up to 2 px away from the ideal rim (the Hough
+    // radius is not exact and edges are 1 px thin).
+    const int tolerance = 2;
+    int onRim = 0;
+    int inside = 0;
+    for (int k = 0; k < 90; ++k) {
+        const double angle = 2.0 * CV_PI * k / 90.0;
+        const int x = cvRound(circle[0] + circle[2] * std::cos(angle));
+        const int y = cvRound(circle[1] + circle[2] * std::sin(angle));
+        if (x < 0 || y < 0 || x >= edges.cols || y >= edges.rows) {
+            continue;  // this part of the coin is outside the image
+        }
+        ++inside;
+        const cv::Rect window = cv::Rect(x - tolerance, y - tolerance, 2 * tolerance + 1,
+                                         2 * tolerance + 1) &
+                                cv::Rect(0, 0, edges.cols, edges.rows);
+        onRim += cv::countNonZero(edges(window)) > 0 ? 1 : 0;
+    }
+    return inside == 0 ? 0.0 : static_cast<double>(onRim) / inside;
 }
 
 // True if circle `b` describes the same coin as circle `a`: their centers are
@@ -48,7 +81,7 @@ static bool isCutByBorder(const cv::Vec3f& circle, const cv::Size& imageSize)
 }
 
 std::vector<CoinCandidate> selectCandidates(const std::vector<cv::Vec3f>& circles,
-                                            const cv::Size& imageSize)
+                                            const cv::Size& imageSize, bool verbose)
 {
     // minDist already prevents most duplicates; this explicit check makes the
     // "each physical coin counts once" rule visible. HoughCircles lists the
@@ -67,9 +100,10 @@ std::vector<CoinCandidate> selectCandidates(const std::vector<cv::Vec3f>& circle
         }
     }
 
-    const size_t removed = circles.size() - kept.size();
-    std::cout << "  Hough circles: " << circles.size()
-              << ", duplicates removed: " << removed << "\n";
+    if (verbose) {
+        std::cout << "  Hough circles: " << circles.size()
+                  << ", duplicates removed: " << circles.size() - kept.size() << "\n";
+    }
 
     std::vector<CoinCandidate> candidates;
     for (size_t i = 0; i < kept.size(); ++i) {

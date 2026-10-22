@@ -74,3 +74,30 @@ void showImage(const std::string& windowTitle, const cv::Mat& image)
     cv::resize(image, display, cv::Size(), scale, scale, cv::INTER_AREA);
     cv::imshow(windowTitle, display);
 }
+
+cv::Mat makeMosaic(const std::vector<cv::Mat>& tiles, const std::vector<std::string>& captions,
+                   int columns)
+{
+    if (tiles.empty()) {
+        return cv::Mat();
+    }
+    const cv::Size tileSize = tiles[0].size();
+    const int rows = (static_cast<int>(tiles.size()) + columns - 1) / columns;
+    cv::Mat mosaic(rows * tileSize.height, columns * tileSize.width, CV_8UC3,
+                   cv::Scalar(40, 40, 40));
+
+    for (size_t i = 0; i < tiles.size(); ++i) {
+        const int row = static_cast<int>(i) / columns;
+        const int column = static_cast<int>(i) % columns;
+        cv::Mat cell = mosaic(cv::Rect(column * tileSize.width, row * tileSize.height,
+                                       tileSize.width, tileSize.height));
+        tiles[i].copyTo(cell);
+        if (i < captions.size()) {
+            cv::putText(cell, captions[i], cv::Point(8, 26), cv::FONT_HERSHEY_SIMPLEX, 0.7,
+                        cv::Scalar(0, 0, 0), 5, cv::LINE_AA);
+            cv::putText(cell, captions[i], cv::Point(8, 26), cv::FONT_HERSHEY_SIMPLEX, 0.7,
+                        cv::Scalar(0, 255, 255), 2, cv::LINE_AA);
+        }
+    }
+    return mosaic;
+}
